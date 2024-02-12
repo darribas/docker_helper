@@ -1,0 +1,360 @@
+---
+title: "Docker Helper"
+subtitle: "Zero to (container) hero"
+author: 
+    - name: "Dani Arribas-Bel"
+      affiliations:
+        - name: Geographic Data Science Lab
+          address: University of Liverpool, Liverpool (UK)
+        - name: The Alan Turing Institute
+          address: British Library, 96 Euston Road, London (UK)
+toc: true
+highlight-style: 'github'
+format:
+    html: 
+      self-contained: true
+      grid: 
+        margin-width: 350px
+    pdf:
+      latex-auto-mk: true
+      latex-auto-install: true
+filters:
+    - line-highlight
+execute: 
+  echo: fenced
+reference-location: margin
+citation-location: "document"
+bibliography: refs.bib
+---
+
+{{< pagebreak >}}
+
+# License
+
+::: {.callout-note}
+Docker Helper © 2024 by Dani Arribas-Bel is licensed under CC BY 4.0. To view
+a copy of this license, visit [http://creativecommons.org/licenses/by/4.0/](http://creativecommons.org/licenses/by/4.0/)
+:::
+
+# Introduction
+
+This document presents a sequence of steps to walk through in a live session
+to get your head around Docker for (geographic) data science. On its own, it
+is probably of limited utility. 
+
+::: {.callout-warning}
+
+The reader is expected to be familiar with the following two sections of
+Chapter 2 in @rey2023geographic [^1]:
+
+[^1]: Note the book is also available online for free at:
+[`geographicdata.science/book`](https://geographicdata.science/book)
+
+- [Reproducible
+  platforms](https://geographicdata.science/book/notebooks/02_geospatial_computational_environment.html#reproducible-platforms)
+- [Containerised
+  platform](https://geographicdata.science/book/notebooks/02_geospatial_computational_environment.html#containerized-platform)
+
+:::
+
+# The anatomy of Docker: images and containers
+
+## Images
+
+```bash
+docker image ls
+```
+
+```bash
+REPOSITORY         TAG       IMAGE ID       CREATED         SIZE
+darribas/gds_dev   10.0      e723f55128e3   3 months ago    12.2GB
+```
+
+## Containers
+
+```bash
+docker ps
+```
+
+# Running your first container
+
+::: {.column-margin}
+Ensure you have the `darribas/gds_dev:10.0` downloaded locally (otherwise,
+make sure you have a good internet connection and prepare to wait for a bit
+while id downloads.
+:::
+
+```bash
+docker run darribas/gds_dev:10.0
+```
+
+Which is the same as:
+
+```bash
+docker run \
+    darribas/gds_dev:10.0
+```
+
+::: {.column-margin}
+In this context, ```\``` simply "breaks" the code line, ensuring the next one is
+read as part of the same code snippet. We will use this pattern a lot below
+for legibility.
+:::
+
+# Options when running a container
+
+Let's make the command above useful. The following ensures the server stays
+running and, once exited, the container is discarded.
+
+```bash
+docker run \
+    --rm \  # Destroy when exited #<<
+    -ti \   # Run on terminal and interactive #<<
+    darribas/gds_dev:10.0  # Docker image
+```
+
+Now we also forward the port from the container to the host, so if we visit
+`localhost:8888`, we can access the server.
+
+```bash
+docker run \
+    --rm \  # Destroy when exited
+    -ti \   # Run on terminal and interactive
+    -p 8888:8888 \  # Port #<<
+    darribas/gds_dev:10.0  # Docker image
+```
+
+This is great, a usable Jupyter instance. But it is fully isolated from the
+data in the host. To "mount" the host in the file system of our container, and
+access its files, we add the following line:
+
+```bash
+docker run \
+    --rm \  # Destroy when exited
+    -ti \   # Run on terminal and interactive
+    -p 8888:8888 \  # Port
+    -v ${PWD}:/home/jovyan/work \ #<<
+    darribas/gds_dev:10.0  # Docker image
+```
+
+# Using `docker-compose`
+
+The above is great but requires a great amount of memory muscle to remember
+all those settings (and perhaps even more to type them every time you want to
+run a container!). We can encode all those options into a helper file that'll
+"remember" them for us. Enter
+[`docker-compose`](https://docs.docker.com/compose/), the piece of software
+that will read and interpret `compose.yml` files. An in depth introduction of
+`compose` is well beyond this session. Instead, we will simply whet your
+apetite to learn more about it by translating the command above into a
+`compose`-able file:
+
+```{.yml filename="compose.yml"}
+services:
+ jupyter:
+   image: darribas/gds_dev:10.0
+   ports:
+     - "8888:8888"
+   volumes:
+     - /home/dani:/home/jovyan/work
+```
+:::: {.column-margin}
+::: {.callout-warning}
+Make sure to replace `/home/dani` on the volumes section by the path in the
+host you would like to mount into the running container.
+:::
+::::
+
+Paste the above into a text file that you place in your machine, name it
+`compose.yml`, and navigate in the command line to the folder where you have
+placed the file. 
+
+```bash
+docker compose up
+```
+
+This will spin up a container with the parameters specified on the file named
+`compose.yml` in the folder where the command is being run.
+
+In the example above, this will launch a Jupyter server, and you can exit it
+with `Ctrl + C`. In other cases (e.g., see Rstudio case below), the server or
+app will run in the background and you will not see much activity in the
+command line. If you then want to spin down the app:
+
+
+```bash
+docker compose down
+```
+
+# Popular images for (geographic) data science
+
+## `gds_env`
+
+- `Frontend`: Jupyter Lab
+- `Stack`: Python and R
+- `URL`: [https://darribas.org/gds_env/](https://darribas.org/gds_env/)
+- Launch:
+
+::: {.panel-tabset}
+
+## Docker
+
+```bash
+docker run \
+    --rm \
+    -ti \
+    -p 8888:8888 \
+    -v ${PWD}:/home/jovyan/work \
+    darribas/gds_dev:latest      
+```
+
+Notes: 
+
+- `${PWD}` will pick up the working directory from where you run the command.
+  Replace accordingly with the path to the host folder you want to mount.
+- If you want to pin to a specific version of the image, replace `latest` by
+  the version (e.g., `10.0`).
+
+## Compose
+
+```{.yml filename="compose.yml"}
+services:
+ jupyter:
+   image: darribas/gds_dev:latest
+   ports:
+     - "8888:8888"
+   volumes:
+     - /home/dani:/home/jovyan/work
+```
+
+Notes:
+
+- If you want to pin to a specific version of the image, replace `latest` by
+  the version (e.g., `10.0`).
+- Replace `/home/dani` with the path to the host folder you want to mount.
+
+:::
+
+## Rocker
+
+- `Frontend`: Rstudio Server
+- `Stack`: R
+- `URL`: [https://rocker-project.org/](https://rocker-project.org/)
+- Launch:
+
+::: {.panel-tabset}
+
+## Docker
+
+```bash
+docker run \
+    --rm \
+    -ti \
+    -p 8787:8787 \
+    -e PASSWORD=yourpassword \
+    -v ${PWD}:/home/rstudio/work \
+    rocker/geospatial:latest
+```
+
+Notes:
+
+- `-e` signifies an "environment variable" that can pass the password into the container dynamically.
+- `${PWD}` will pick up the working directory from where you run the command.
+  Replace accordingly with the path to the host folder you want to mount.
+- If you want to pin to a specific version of the image, replace `latest` by
+  the version (e.g., `4.3.2`).
+
+## Compose
+
+```{.yml filename="compose.yml"}
+services:
+  rstudio:
+    image: rocker/geospatial:latest
+    ports:
+      - "8788:8787"
+    volumes:
+      - /home/dani:/home/rstudio/work
+    environment:
+      PASSWORD: "mypassword"
+```
+
+Notes:
+
+- If you want to pin to a specific version of the image, replace `latest` by
+the version (e.g., `10.0`).
+- Replace `/home/dani` with the path to the host folder you want to mount.
+
+:::
+
+
+## `gdsrpy`
+
+- `Frontend`: Rstudio Server
+- `Stack`: R and Python
+- `URL`: [https://github.com/GDSL-UL/gdsr/](https://github.com/GDSL-UL/gdsr/)
+- Launch:
+
+::: {.panel-tabset}
+
+## Docker
+
+```bash
+docker run \
+    --rm \
+    -ti \
+    -p 8787:8787 \
+    -e PASSWORD=yourpassword \
+    -v ${PWD}:/home/rstudio/work \
+    rocker/geospatial:latest
+```
+
+Notes:
+
+- `${PWD}` will pick up the working directory from where you run the command.
+  Replace accordingly with the path to the host folder you want to mount.
+- If you want to pin to a specific version of the image, replace `latest` by
+  the version (e.g., `4.3.2`).
+
+## Compose
+
+```{.yml filename="compose.yml"}
+services:
+  rstudio:
+    image: rocker/geospatial:latest
+    ports:
+      - "8788:8787"
+    volumes:
+      - /home/dani:/home/rstudio/work
+    environment:
+      PASSWORD: "mypassword"
+```
+
+Notes:
+
+- If you want to pin to a specific version of the image, replace `latest` by
+the version (e.g., `10.0`).
+- Replace `/home/dani` with the path to the host folder you want to mount.
+
+:::
+
+# Building your own images
+
+```{.dockerfile filename="Dockerfile"}
+FROM darribas/gds_dev:10.0
+
+ADD ./mydata.zip /home/jovyan/mydata.zip
+
+RUN conda install longboard
+
+RUN R -e "install.packages("officeverse", repos='http://cran.rstudio.com');"
+```
+
+::: {.column-margin}
+See [here](https://docs.docker.com/engine/reference/builder/) for all commands
+you can use in a `Dockerfile`.
+:::
+
+{{< pagebreak >}}
+
+# References
+
